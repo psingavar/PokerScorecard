@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Poker Game Tracker</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use Inter font -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Custom scrollbar for better aesthetics */
+        .player-list::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .player-list::-webkit-scrollbar-thumb {
+            background-color: #a8a8a8;
+            border-radius: 10px;
+        }
+        /* Custom class for the sticky header effect */
+        .sticky-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            /* UPDATED: Use a solid black background */
+            background-color: #000; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div id="app" class="max-w-6xl mx-auto">
+        
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Home Poker Scorecard 💰</h1>
+            <p class="text-lg text-gray-600">Buy-in & Reloads are set to <span class="font-bold text-green-600">$10</span>.</p>
+            <!-- Updated Status to reflect Session Storage -->
+            <p id="user-id-display" class="text-sm text-gray-500 mt-2">Status: Data persists across refresh (Session Storage). Closing tab clears data.</p>
+        </header>
+
+        <!-- Loading & Error Indicator -->
+        <div id="status-message" class="mb-4 p-3 bg-blue-100 text-blue-700 rounded-lg hidden"></div>
+
+        <!-- GAME CONTENT CONTAINER (Everything visible during tracking, hidden during photo share) -->
+        <div id="game-content-container">
+        
+            <!-- Add New Player Form -->
+            <div class="bg-white p-4 rounded-xl shadow-lg mb-8">
+                <h2 class="text-xl font-semibold mb-3 text-gray-700">Add New Player</h2>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="new-player-name" placeholder="Enter Player Name" class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 transition duration-150">
+                    <button onclick="addPlayer()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 active:scale-95">
+                        Add Player
+                    </button>
+                </div>
+            </div>
+
+            <!-- ACTIVE GAME STATUS (TOP SECTION) -->
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700">Active Game Status (Buy-ins & Reloads)</h2>
+            <div class="player-list overflow-x-auto mb-8">
+                <!-- Header for Active Status - Tighter grid for Name and Buy-in columns -->
+                <div id="in-game-header" class="sticky-header grid grid-cols-[0.8fr_0.3fr_1.4fr_0.3fr] gap-1 font-bold text-sm text-white border-b-2 pb-2 mb-3 px-2 min-w-[400px]">
+                    <!-- NAME - Standard white on black -->
+                    <div class="text-white">NAME</div> 
+                    <!-- BUY-IN ($) - Gold -->
+                    <div class="text-center text-yellow-400">BUY-IN ($)</div>
+                    <!-- RELOADS / ADD - Blue -->
+                    <div class="text-center text-blue-400">RELOADS / ADD</div>
+                    <!-- DEL - Red -->
+                    <div class="text-center text-red-400">DEL</div>
+                </div>
+                
+                <!-- In-Game Player List - Buy-in, Reloads (+/-), Delete -->
+                <div id="in-game-list" class="space-y-3 pb-2">
+                    <!-- Player rows and IN-GAME TOTALS row will be injected here -->
+                    <div class="text-center py-10 text-gray-500 bg-white rounded-xl shadow-md">No players added yet.</div>
+                </div>
+            </div>
+
+            <!-- PAYOUT & RESULTS (BOTTOM SECTION) -->
+            <h2 class="text-2xl font-semibold mb-4 text-gray-700 border-t pt-4 border-gray-300">Payout & Final Results</h2>
+            <div class="player-list overflow-x-auto">
+                <!-- NEW 5-COLUMN GRID -->
+                <div id="payout-header" class="sticky-header grid grid-cols-[0.8fr_0.9fr_0.9fr_1fr_1fr] gap-1 font-bold text-xs md:text-sm text-white border-b-2 pb-2 mb-3 px-2 min-w-[550px]">
+                    <!-- NAME - Standard white on black -->
+                    <div class="text-white">NAME</div>
+                    <!-- TOTAL BUY-IN ($) - Gray -->
+                    <div class="text-center text-gray-400">TOTAL IN ($)</div>
+                    <!-- CLOSING BALANCE ($) - Yellow -->
+                    <div class="text-right text-yellow-300">BALANCE ($)</div>
+                    <!-- P/L ($) - RENAMED TO P/L -->
+                    <div class="text-right text-purple-300">P/L ($)</div>
+                    <!-- P/L ($) - FINAL ADJ -->
+                    <div class="text-right text-green-400">P/L ADJ (FINAL) ($)</div>
+                </div>
+
+                <!-- Payout Player List - Total Money In, Closing Balance (Input), P/L Pre, P/L Adj -->
+                <div id="payout-list" class="space-y-3 pb-2">
+                    <!-- Payout player rows and PAYOUT TOTALS row will be injected here -->
+                    <div class="text-center py-10 text-gray-500 bg-white rounded-xl shadow-md">No players added yet.</div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-8 pt-4 border-t border-gray-200 flex flex-col md:flex-row justify-end space-y-3 md:space-y-0 md:space-x-4">
+                 <button onclick="showAdjustmentConfirmation()" id="adjust-shortfall-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 active:scale-95 disabled:opacity-50" disabled>
+                    Adjust Shortfall/Surplus
+                </button>
+                <button onclick="copySummaryToClipboard()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 active:scale-95">
+                    Copy Results to Clipboard
+                </button>
+                <button onclick="prepareForPhotoShare()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 active:scale-95">
+                    Prepare for Photo Share 📸
+                </button>
+                <button onclick="showResetConfirmation()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 active:scale-95">
+                    Reset Game Data
+                </button>
+            </div>
+        </div>
+        
+        <!-- PHOTO SHARE VIEW (Hidden by default, optimized for screenshot) -->
+        <div id="photo-share-view" class="hidden bg-white p-6 rounded-xl shadow-2xl mx-auto w-full">
+            <div class="text-center mb-6 pt-4">
+                <h3 class="text-3xl font-extrabold text-gray-800">Final Poker Results</h3>
+                <p id="share-date" class="text-md text-gray-500 mt-1"></p>
+                <p class="text-xs text-gray-400 mt-1" id="session-id-share">Status: Data persists across refresh (Session Storage)</p>
+            </div>
+            
+            <!-- The actual shareable table HTML will be injected here -->
+            <div id="shareable-results-table"></div>
+
+            <div class="mt-8 text-center">
+                <p class="text-base font-semibold text-gray-700 mb-4">
+                    Take a screenshot of the table above for sharing.
+                </p>
+                <button onclick="exitPhotoShareView()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-lg transition duration-200 active:scale-95">
+                    Exit Photo View
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Confirmation Modal (Reset) -->
+    <div id="reset-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden" onclick="hideModal('reset-modal')">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm mx-4" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4 text-red-600">Confirm Reset</h3>
+            <p class="text-gray-700 mb-6">Are you sure you want to reset the game? This will clear all **Reloads**, **Closing Balances**, and **Adjustment Data** for every player, but their **Names** will remain.</p>
+            <div class="flex justify-end space-x-3">
+                <button onclick="hideModal('reset-modal')" class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition duration-150">Cancel</button>
+                <button onclick="resetGame()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-150 active:scale-95">Reset Data</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirmation Modal (Delete) -->
+    <div id="delete-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden" onclick="hideModal('delete-modal')">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm mx-4" onclick="event.stopPropagation()">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Remove Player</h3>
+            <p class="text-gray-700 mb-6">Are you sure you want to remove <strong id="delete-player-name" class="text-red-600"></strong> from the game?</p>
+            <div class="flex justify-end space-x-3">
+                <button onclick="hideModal('delete-modal')" class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition duration-150">Cancel</button>
+                <button id="confirm-delete-button" onclick="" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-150 active:scale-95">Remove</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal (Adjustment) -->
+    <div id="adjustment-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden" onclick="hideModal('adjustment-modal')">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-md mx-4" onclick="event.stopPropagation()">
+            <h3 id="modal-title" class="text-xl font-bold mb-4 text-indigo-600">Confirm Adjustment</h3>
+            <p id="modal-explanation" class="text-gray-700 mb-6">
+                <!-- Dynamic text will be injected here by JS -->
+            </p>
+            <p class="text-sm font-semibold text-gray-500 mb-4">
+                This process is generally irreversible.
+            </p>
+            <div class="flex justify-end space-x-3">
+                <button onclick="hideModal('adjustment-modal')" class="px-4 py-2 text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition duration-150">Cancel</button>
+                <button onclick="adjustShortfallToWinners()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150 active:scale-95">Confirm Adjustment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script for Game Logic with Session Storage -->
+    <script>
+        // Global state (In-Memory, but loaded/saved from Session Storage)
+        let playersData = []; 
+        let currentGameMetrics = { netProfitLoss: 0, totalMoneyIn: 0, totalClosingBalance: 0 }; 
+        
+        const BUY_IN_AMOUNT = 10;
+        const SESSION_STORAGE_KEY = 'pokerGameSessionData'; // Key to save under
+
+        // --- Persistence Functions ---
+        
+        // Loads data from sessionStorage on app start
+        function loadSessionData() {
+            try {
+                const storedData = sessionStorage.getItem(SESSION_STORAGE_KEY);
+                if (storedData) {
+                    // Parse the stored JSON string back into a JavaScript object/array
+                    playersData = JSON.parse(storedData);
+                    showStatus("Session data loaded successfully.", false);
+                } else {
+                    playersData = []; // Start fresh if no data is found
+                }
+            } catch (e) {
+                console.error("Error loading session data:", e);
+                showStatus("Error loading saved game data.", true);
+                playersData = []; // Fallback to empty
+            }
+        }
+        
+        // Saves current playersData to sessionStorage
+        function saveSessionData() {
+            try {
+                // Stringify the JavaScript array into a JSON string before saving
+                sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(playersData));
+            } catch (e) {
+                console.error("Error saving session data:", e);
+                showStatus("Error saving game data. Is your browser storage full?", true);
+            }
+        }
+
+        // --- Utility and Core Logic (Updated to call saveSessionData) ---
+
+        // Utility function to show status messages
+        const showStatus = (message, isError = false) => {
+            const statusEl = document.getElementById('status-message');
+            statusEl.textContent = message;
+            statusEl.classList.remove('hidden', 'bg-blue-100', 'text-blue-700', 'bg-red-100', 'text-red-700');
+            if (isError) {
+                statusEl.classList.add('bg-red-100', 'text-red-700');
+            } else {
+                statusEl.classList.add('bg-blue-100', 'text-blue-700');
+            }
+            statusEl.classList.remove('hidden');
+            console.log(`STATUS: ${message}`);
+        };
+
+        const hideStatus = () => {
+            document.getElementById('status-message').classList.add('hidden');
+        };
+        
+        // Helper function to calculate game metrics
+        function calculateGameMetrics(players) {
+            let totalInitialBuyIn = 0; 
+            let totalReloadsCount = 0; 
+            let totalClosingBalance = 0; 
+            let totalMoneyIn = 0;
+            
+            const calculatedPlayers = players.map(player => {
+                const playerReloads = player.reloads || 0;
+                const playerAdjustment = player.adjustmentAmount || 0; 
+                
+                const totalPlayerMoneyIn = BUY_IN_AMOUNT + (playerReloads * BUY_IN_AMOUNT);
+                const closingBalance = parseFloat(player.closingBalance) || 0;
+
+                // P/L Adj (Final)
+                const profitLossAdjusted = closingBalance - totalPlayerMoneyIn; 
+                // P/L (Pre-Adjustment) 
+                const profitLossPre = (closingBalance - playerAdjustment) - totalPlayerMoneyIn;
+
+                totalInitialBuyIn += BUY_IN_AMOUNT; 
+                totalReloadsCount += playerReloads;
+                totalClosingBalance += closingBalance;
+                totalMoneyIn += totalPlayerMoneyIn;
+
+                return {
+                    ...player,
+                    adjustmentAmount: playerAdjustment, 
+                    totalPlayerMoneyIn: totalPlayerMoneyIn,
+                    profitLossAdjusted: profitLossAdjusted,
+                    profitLossPre: profitLossPre,
+                    closingBalance: closingBalance 
+                };
+            });
+
+            let netProfitLoss = totalClosingBalance - totalMoneyIn; 
+            // Account for floating point errors near zero
+            if (Math.abs(netProfitLoss) < 0.01) { netProfitLoss = 0.00; }
+            
+            currentGameMetrics = {
+                netProfitLoss, 
+                totalMoneyIn,
+                totalClosingBalance,
+                totalInitialBuyIn,
+                totalReloadsCount
+            };
+            
+            return calculatedPlayers;
+        }
+
+        // --- Core Logic: Process and Render (Now calls Save) ---
+        function processAndRenderPlayers() {
+            // 1. Calculate metrics based on current in-memory playersData
+            const calculatedPlayers = calculateGameMetrics(playersData);
+            playersData = calculatedPlayers; // Update the global array with calculated metrics
+            
+            // ** 2. Save data to sessionStorage **
+            saveSessionData();
+            
+            // 3. Render the UI
+            renderPlayers(calculatedPlayers);
+            
+            // 4. Update the Adjustment Button State
+            updateAdjustmentButtonState();
+        }
+
+        // Update the state of the adjustment button 
+        function updateAdjustmentButtonState() {
+            const btn = document.getElementById('adjust-shortfall-btn');
+            const rawDifference = currentGameMetrics.netProfitLoss; // Total Pot - Total Buy-ins
+            
+            let isConditionMet = false;
+            let amountToAdjust = 0;
+            let buttonText = 'Adjust Shortfall/Surplus';
+
+            if (rawDifference > 0.01) {
+                // USER'S RULE: Balance > Buy-ins (Surplus) -> Treat as shortfall (deduction/negative PL Adj)
+                isConditionMet = true;
+                amountToAdjust = rawDifference;
+                buttonText = `Apply Surplus Deduction (-$${amountToAdjust.toFixed(2)} PL Adj)`;
+            } else if (rawDifference < -0.01) {
+                 // STANDARD RULE: Balance < Buy-ins (Deficit) -> Treat as missing cash (compensation/positive PL Adj)
+                 isConditionMet = true;
+                 amountToAdjust = Math.abs(rawDifference);
+                 buttonText = `Compensate Deficit (+$${amountToAdjust.toFixed(2)} PL Adj)`;
+            }
+
+            if (isConditionMet) {
+                btn.removeAttribute('disabled');
+            } else {
+                btn.setAttribute('disabled', 'true');
+            }
+            btn.textContent = buttonText;
+        }
+
+        // Render player list to the UI (unchanged)
+        function renderPlayers(players) {
+            const inGameListEl = document.getElementById('in-game-list');
+            const payoutListEl = document.getElementById('payout-list');
+            
+            inGameListEl.innerHTML = ''; 
+            payoutListEl.innerHTML = '';
+
+            if (players.length === 0) {
+                const emptyHTML = '<div class="text-center py-10 text-gray-500 bg-white rounded-xl shadow-md">No players added yet.</div>';
+                inGameListEl.innerHTML = emptyHTML;
+                payoutListEl.innerHTML = emptyHTML;
+                return;
+            }
+
+            players.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+            
+            const { totalInitialBuyIn, totalReloadsCount, totalClosingBalance, totalMoneyIn, netProfitLoss } = currentGameMetrics;
+            
+            let inGameListHTML = '';
+            let payoutListHTML = '';
+            
+            const inGameGridCols = 'grid-cols-[0.8fr_0.3fr_1.4fr_0.3fr]';
+            const payoutGridCols = 'grid-cols-[0.8fr_0.9fr_0.9fr_1fr_1fr]'; 
+            const minWidthClass = 'min-w-[550px]'; 
+            const gapClass = 'gap-1'; 
+            const paddingClass = 'p-2'; 
+
+            players.forEach(player => {
+                const playerReloads = player.reloads || 0;
+                const totalPlayerMoneyIn = player.totalPlayerMoneyIn;
+                const closingBalance = player.closingBalance;
+                
+                const profitLossPre = player.profitLossPre;
+                const profitLossAdjusted = player.profitLossAdjusted;
+
+                // Determine profit/loss color for P/L Pre
+                let profitLossPreClass = 'text-gray-800';
+                if (profitLossPre > 0) {
+                    profitLossPreClass = 'text-purple-600 font-bold';
+                } else if (profitLossPre < 0) {
+                    profitLossPreClass = 'text-red-600 font-bold';
+                }
+                
+                // Determine profit/loss color for P/L Adj (Final)
+                let profitLossAdjClass = 'text-gray-800';
+                if (profitLossAdjusted > 0) {
+                    profitLossAdjClass = 'text-green-600 font-bold';
+                } else if (profitLossAdjusted < 0) {
+                    profitLossAdjClass = 'text-red-600 font-bold';
+                }
+                
+                const plPrePrefix = profitLossPre >= 0 ? '+' : '';
+                const plAdjPrefix = profitLossAdjusted >= 0 ? '+' : '';
+
+                
+                // --- Adjustment Detail for P/L Column (Pre-Adj) ---
+                const adjDetailValue = player.adjustmentAmount;
+                let adjustmentDetailHTML = '';
+
+                if (Math.abs(adjDetailValue) > 0.01) {
+                    const adjSign = adjDetailValue >= 0 ? '+' : '';
+                    adjustmentDetailHTML = `<span class="text-xs text-orange-500 font-semibold block pt-1">( ${adjSign}${adjDetailValue.toFixed(2)} )</span>`;
+                }
+                // --- End Adjustment Detail ---
+
+                // 1. IN-GAME STATUS ROW 
+                inGameListHTML += `
+                    <div class="player-row bg-white ${paddingClass} rounded-xl shadow-md grid ${inGameGridCols} ${gapClass} items-center min-w-[400px]">
+                        <!-- Name -->
+                        <div class="flex items-center text-base font-semibold text-gray-800">
+                            ${player.name}
+                        </div>
+
+                        <!-- Starting Buy-in ($) -->
+                        <div class="text-center text-sm font-medium text-gray-600">
+                            $${BUY_IN_AMOUNT}
+                        </div>
+
+                        <!-- Reloads (Count + Buttons) -->
+                        <div class="flex items-center justify-center space-x-2">
+                            <!-- Reload Count -->
+                            <span class="text-base font-medium text-blue-600 w-5 text-right">${playerReloads}</span>
+                            
+                            <!-- Reload Controls Group -->
+                            <div class="flex items-center space-x-1">
+                                <button 
+                                    onclick="decrementReload('${player.id}')" 
+                                    class="bg-yellow-500 hover:bg-yellow-600 text-white w-7 h-7 rounded-lg shadow-md transition duration-200 active:scale-90 text-lg font-bold disabled:opacity-50"
+                                    title="Subtract $${BUY_IN_AMOUNT} Reload"
+                                    ${playerReloads > 0 ? '' : 'disabled'}
+                                >
+                                    -
+                                </button>
+                                <button 
+                                    onclick="incrementReload('${player.id}')" 
+                                    class="bg-blue-500 hover:bg-blue-600 text-white w-7 h-7 rounded-lg shadow-md transition duration-200 active:scale-90 text-lg font-bold"
+                                    title="Add $${BUY_IN_AMOUNT} Reload"
+                                >
+                                    +
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons (Delete Only) -->
+                        <div class="flex justify-center items-center">
+                            <!-- Delete Button -->
+                            <button 
+                                onclick="showDeleteConfirmation('${player.id}', '${player.name}')" 
+                                class="bg-gray-200 hover:bg-red-300 text-gray-600 w-7 h-7 rounded-full shadow-md transition duration-200 active:scale-90 text-md"
+                                title="Remove Player"
+                            >
+                                &times;
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                // 2. PAYOUT RESULTS ROW 
+                payoutListHTML += `
+                    <div class="player-row bg-white ${paddingClass} rounded-xl shadow-md grid ${payoutGridCols} ${gapClass} items-center ${minWidthClass}">
+                        <!-- Name -->
+                        <div class="flex items-center text-base font-semibold text-gray-800">
+                            ${player.name}
+                        </div>
+                        
+                        <!-- Total Buy-in (Calculated) -->
+                        <div class="text-center text-sm font-medium text-gray-600">
+                            $${totalPlayerMoneyIn.toFixed(2)}
+                        </div>
+
+                        <!-- Closing Balance (Input) - Tighter Padding -->
+                        <div class="flex items-center">
+                            <span class="mr-0.5 text-gray-500">$</span>
+                            <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                value="${closingBalance.toFixed(2)}"
+                                onchange="updateClosingBalance('${player.id}', this.value)"
+                                class="w-full p-1 border-2 border-yellow-300 rounded-lg text-right font-bold bg-yellow-50 text-base focus:ring-yellow-500 focus:border-yellow-500 transition duration-150 shadow-inner"
+                            />
+                        </div>
+
+                        <!-- Profit/Loss (P/L) -->
+                        <div class="text-right text-base ${profitLossPreClass}">
+                            ${plPrePrefix}$${Math.abs(profitLossPre).toFixed(2)}
+                            ${adjustmentDetailHTML}
+                        </div>
+
+                        <!-- Profit/Loss (Final Adjusted) -->
+                        <div class="text-right text-base ${profitLossAdjClass}">
+                            ${plAdjPrefix}$${Math.abs(profitLossAdjusted).toFixed(2)}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            // 1. IN-GAME TOTALS
+            const inGameTotalRowHTML = `
+                <div class="player-row bg-gray-100 ${paddingClass} rounded-xl shadow-inner grid ${inGameGridCols} ${gapClass} items-center min-w-[400px] mt-4 border-t-2 border-gray-400">
+                    <!-- Label -->
+                    <div class="text-base font-bold text-gray-800">TOTALS</div>
+                    <!-- Total Initial Buy-In -->
+                    <div class="text-center text-sm font-bold text-gray-700">$${totalInitialBuyIn.toFixed(0)}</div>
+                    <!-- Total Reloads Count -->
+                    <div class="text-center text-base font-bold text-blue-700">${totalReloadsCount}</div>
+                    <!-- Action - Empty -->
+                    <div class="flex justify-center items-center text-gray-500">—</div>
+                </div>
+            `;
+            
+            // 2. PAYOUT TOTALS
+            let shortfallDisplayPrefix;
+            let shortfallDisplayValue;
+            
+            if (netProfitLoss < -0.01) {
+                // Shortfall is negative: Deficit (Balance < Buy-ins)
+                shortfallDisplayPrefix = '-';
+                shortfallDisplayValue = Math.abs(netProfitLoss).toFixed(2);
+                
+            } else if (netProfitLoss > 0.01) {
+                // Surplus is positive: Surplus (Balance > Buy-ins)
+                shortfallDisplayPrefix = '+';
+                shortfallDisplayValue = netProfitLoss.toFixed(2);
+                
+            } else {
+                // Balanced (near zero): Display as + $0.00
+                shortfallDisplayPrefix = '+';
+                shortfallDisplayValue = (0.00).toFixed(2);
+            }
+            
+            const shortfallTotalClass = shortfallDisplayPrefix === '-' ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
+            
+            // P/L Adj (Final) Total: Always +$0.00 
+            const finalAdjTotalValue = (0.00).toFixed(2);
+            const finalAdjTotalClass = 'text-green-600 font-bold';
+
+            const payoutTotalRowHTML = `
+                <div class="player-row bg-gray-100 ${paddingClass} rounded-xl shadow-inner grid ${payoutGridCols} ${gapClass} items-center ${minWidthClass} mt-4 border-t-2 border-gray-400">
+                    <!-- Label -->
+                    <div class="text-base font-bold text-gray-800">TOTALS</div>
+                    <!-- Total Buy-in -->
+                    <div class="text-center text-sm font-bold text-gray-700">$${totalMoneyIn.toFixed(2)}</div>
+                    <!-- Total Closing Balance -->
+                    <div class="text-right text-base font-bold text-gray-800">$${totalClosingBalance.toFixed(2)}</div>
+                    
+                    <!-- P/L (Shortfall Total) -->
+                    <div class="text-right text-base ${shortfallTotalClass}">${shortfallDisplayPrefix}$${shortfallDisplayValue}</div>
+                    
+                    <!-- Net Profit/Loss (Adj) - Always $0.00 -->
+                    <div class="text-right text-base ${finalAdjTotalValue}">+$${finalAdjTotalValue}</div>
+                </div>
+            `;
+
+            // Render results
+            inGameListEl.innerHTML = inGameListHTML + inGameTotalRowHTML;
+            payoutListEl.innerHTML = payoutListHTML + payoutTotalRowHTML;
+        }
+
+        // --- CRUD Operations (Updated to use Save Helper) ---
+        
+        // Add a new player (Create)
+        window.addPlayer = () => {
+            const playerName = document.getElementById('new-player-name').value.trim();
+            if (!playerName) {
+                return showStatus("Please enter a player name.", false);
+            }
+            hideStatus();
+
+            try {
+                const newPlayer = {
+                    id: crypto.randomUUID(), 
+                    name: playerName,
+                    reloads: 0,
+                    closingBalance: 0, 
+                    adjustmentAmount: 0,
+                };
+                playersData.push(newPlayer);
+                document.getElementById('new-player-name').value = ''; 
+                processAndRenderPlayers(); // Update UI & Save
+            } catch (e) {
+                console.error("Error adding player: ", e);
+                showStatus(`Failed to add player: ${e.message}`, true);
+            }
+        };
+
+        // Helper to update a player object in the array
+        function updatePlayerInArray(playerId, updates) {
+            const index = playersData.findIndex(p => p.id === playerId);
+            if (index !== -1) {
+                playersData[index] = { ...playersData[index], ...updates };
+                processAndRenderPlayers(); // Update UI & Save
+                return true;
+            }
+            return false;
+        }
+
+        // Increment Reload count (Update)
+        window.incrementReload = (playerId) => {
+            const player = playersData.find(p => p.id === playerId);
+            if (player) {
+                updatePlayerInArray(playerId, { reloads: player.reloads + 1 });
+            }
+        };
+
+        // Decrement Reload count (Update)
+        window.decrementReload = (playerId) => {
+            const player = playersData.find(p => p.id === playerId);
+            if (player && player.reloads > 0) {
+                updatePlayerInArray(playerId, { reloads: player.reloads - 1 });
+            }
+        };
+
+        // Update Closing Balance (Update)
+        window.updateClosingBalance = (playerId, value) => {
+            // Limit to two decimal places and parse to number
+            const numericValue = parseFloat(parseFloat(value).toFixed(2));
+            if (isNaN(numericValue) || numericValue < 0) {
+                console.warn("Invalid or negative closing balance entered.");
+                return;
+            }
+            // When manually updating balance, reset any previous adjustment.
+            updatePlayerInArray(playerId, { 
+                closingBalance: numericValue,
+                adjustmentAmount: 0 
+            });
+        };
+
+        // Show Adjustment Confirmation Modal
+        window.showAdjustmentConfirmation = () => {
+            const rawDifference = currentGameMetrics.netProfitLoss; 
+            const modalTitleEl = document.getElementById('modal-title');
+            const modalExplanationEl = document.getElementById('modal-explanation');
+
+            if (rawDifference > 0.01) {
+                modalTitleEl.textContent = "Confirm Surplus Deduction (Your Rule)";
+                modalExplanationEl.innerHTML = `The net difference is a **SURPLUS** of <strong class="text-green-600">$${rawDifference.toFixed(2)}</strong> (Balance > Buy-ins). Per your rule, this will be applied as a <strong class="text-red-600">DEDUCTION</strong> (negative P&L Adj) to winning players' payouts.`;
+                modalTitleEl.classList.add('text-red-600');
+                modalTitleEl.classList.remove('text-indigo-600');
+            } else if (rawDifference < -0.01) {
+                modalTitleEl.textContent = "Confirm Deficit Compensation (Standard Shortfall)";
+                modalExplanationEl.innerHTML = `The net difference is a **DEFICIT** of <strong class="text-red-600">$${Math.abs(rawDifference).toFixed(2)}</strong> (Balance < Buy-ins). This amount will be applied as an <strong class="text-indigo-600">ADDITION</strong> (positive P&L Adj) to winning players' payouts to balance the session.`;
+                modalTitleEl.classList.add('text-indigo-600');
+                modalTitleEl.classList.remove('text-red-600');
+            } else {
+                return showStatus("No significant difference detected. Adjustment not needed.", false);
+            }
+            
+            document.getElementById('adjustment-modal').classList.remove('hidden');
+        };
+
+        // Adjust Shortfall Logic (In-Memory, but saves immediately)
+        window.adjustShortfallToWinners = () => {
+            hideModal('adjustment-modal');
+
+            const rawDifference = currentGameMetrics.netProfitLoss;
+            
+            if (Math.abs(rawDifference) < 0.01) {
+                return showStatus("No significant difference to adjust.", true);
+            }
+
+            let adjustmentSign;
+            let amountToDistribute = Math.abs(rawDifference);
+            
+            if (rawDifference > 0) {
+                adjustmentSign = -1;
+                showStatus(`Calculating and applying custom P/L deduction of $${amountToDistribute.toFixed(2)}...`);
+            } else {
+                adjustmentSign = 1;
+                showStatus(`Calculating and applying standard shortfall compensation of $${amountToDistribute.toFixed(2)}...`);
+            }
+            
+            // Identify Winners and Total Gain (using P/L Pre-Adjustment for accurate distribution base)
+            const winnersPre = playersData.map(p => ({
+                ...p,
+                // Calculate P/L Pre from current state (closingBalance - adjustmentAmount - totalMoneyIn)
+                profitLossPreCheck: p.closingBalance - p.adjustmentAmount - p.totalPlayerMoneyIn
+            })).filter(player => player.profitLossPreCheck > 0.01);
+            
+            if (winnersPre.length === 0) {
+                return showStatus("Cannot adjust: No players had a profit (P/L > $0.01) to absorb/receive the adjustment.", true);
+            }
+
+            const totalWinnersGain = winnersPre.reduce((sum, player) => sum + player.profitLossPreCheck, 0);
+
+            if (totalWinnersGain <= 0) {
+                 return showStatus("Cannot adjust: Total winners' pre-adjustment gain is zero or negative.", true);
+            }
+
+            try {
+                // Apply Adjustment to each winner directly in the array
+                winnersPre.forEach(winner => {
+                    const index = playersData.findIndex(p => p.id === winner.id);
+                    if (index === -1) return; // Should not happen
+                    
+                    const gainPercentage = winner.profitLossPreCheck / totalWinnersGain;
+                    
+                    const individualAdjustment = amountToDistribute * gainPercentage * adjustmentSign; 
+                    
+                    // Update player object in the main array
+                    playersData[index].closingBalance = parseFloat((winner.closingBalance + individualAdjustment).toFixed(2));
+                    playersData[index].adjustmentAmount = parseFloat((winner.adjustmentAmount + individualAdjustment).toFixed(2)); 
+                });
+                
+                processAndRenderPlayers(); // Re-calculate metrics, update UI, & Save
+                
+                showStatus(`Difference of $${amountToDistribute.toFixed(2)} successfully distributed to ${winnersPre.length} winners with a ${adjustmentSign === -1 ? 'DEDUCTION' : 'COMPENSATION'}.`, false);
+                setTimeout(hideStatus, 5000);
+            } catch (e) {
+                console.error("Error adjusting shortfall:", e);
+                showStatus(`Failed to apply adjustment: ${e.message}`, true);
+            }
+        };
+
+        // Share Summary function (unchanged)
+        window.copySummaryToClipboard = async () => {
+            showStatus("Generating summary and copying to clipboard...");
+            try {
+                const players = playersData; 
+
+                if (players.length === 0) {
+                    return showStatus("No players to summarize.", true);
+                }
+                
+                const { totalMoneyIn, totalClosingBalance, netProfitLoss } = currentGameMetrics;
+
+                let summaryMessage = "💰 Home Poker Game Results ♠️\n\n--- Player Results ---\n";
+
+                players.sort((a, b) => b.profitLossAdjusted - a.profitLossAdjusted); 
+
+                players.forEach(player => {
+                    const plAdjPrefix = player.profitLossAdjusted >= 0 ? '+' : '';
+                    
+                    const adjValue = player.adjustmentAmount;
+                    const adjText = adjValue !== 0 ? 
+                        ` (${adjValue >= 0 ? '+' : ''}${adjValue.toFixed(2)} Adj)` : '';
+                    
+                    summaryMessage += `\n👤 ${player.name}: ${plAdjPrefix}$${Math.abs(player.profitLossAdjusted).toFixed(2)}${adjText}`;
+                    summaryMessage += ` (In: $${player.totalPlayerMoneyIn.toFixed(2)} | Out: $${player.closingBalance.toFixed(2)})`;
+                });
+                
+                let netPlPrefix = netProfitLoss >= 0.01 ? '+' : (netProfitLoss <= -0.01 ? '-' : '+');
+                
+                summaryMessage += `\n\n--- Totals ---\n`;
+                summaryMessage += `Total Money In: $${totalMoneyIn.toFixed(2)}\n`;
+                summaryMessage += `Total Payout: $${totalClosingBalance.toFixed(2)}\n`;
+                summaryMessage += `Net Session P/L: ${netPlPrefix}$${Math.abs(netProfitLoss).toFixed(2)}\n`;
+                summaryMessage += `\nShared via Scorecard App (${new Date().toLocaleDateString()})`;
+
+                // Copy to clipboard logic
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = summaryMessage;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+                
+                showStatus("Text summary copied to clipboard!", false);
+                setTimeout(hideStatus, 3000);
+
+            } catch (e) {
+                console.error("Error copying summary:", e);
+                showStatus(`Failed to copy summary: ${e.message}`, true);
+            }
+        };
+
+        // Prepare for Photo Share (unchanged)
+        window.prepareForPhotoShare = () => {
+            
+            const players = playersData;
+            if (players.length === 0) {
+                return showStatus("No players to share.", true);
+            }
+
+            document.getElementById('game-content-container').classList.add('hidden');
+            document.getElementById('photo-share-view').classList.remove('hidden');
+            document.getElementById('share-date').textContent = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            
+            generateShareableTable(players);
+        };
+
+        // Generate the Shareable Table HTML (unchanged)
+        function generateShareableTable(players) {
+            
+            const { totalMoneyIn, totalClosingBalance, netProfitLoss } = currentGameMetrics;
+
+            players.sort((a, b) => b.profitLossAdjusted - a.profitLossAdjusted); 
+
+            let tableHTML = `
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-gray-700 rounded-xl overflow-hidden shadow-lg"> 
+                        <thead class="uppercase text-white bg-gray-800">
+                            <tr>
+                                <th scope="col" class="py-2 px-2 text-xs">Player</th> 
+                                <th scope="col" class="py-2 px-2 text-center bg-gray-900 text-gray-400 text-xs">Total In ($)</th>
+                                <th scope="col" class="py-2 px-2 text-right bg-gray-900 text-yellow-300 text-xs">Balance ($)</th>
+                                <th scope="col" class="py-2 px-2 text-right bg-gray-900 text-green-400 text-xs">P/L (Net) ($)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            players.forEach(player => {
+                const profitLossAdjusted = player.profitLossAdjusted;
+                const profitLossPre = player.profitLossPre;
+                const closingBalance = player.closingBalance;
+                const totalPlayerMoneyIn = player.totalPlayerMoneyIn;
+                
+                // P/L Adj color
+                let profitLossAdjClass = 'text-gray-800';
+                if (profitLossAdjusted > 0) { profitLossAdjClass = 'text-green-600 font-bold'; } 
+                else if (profitLossAdjusted < 0) { profitLossAdjClass = 'text-red-600 font-bold'; }
+
+                const plAdjPrefix = profitLossAdjusted >= 0 ? '+' : '';
+                
+                // --- Adjustment Detail for P/L (Net) Column ---
+                const adjValue = player.adjustmentAmount;
+                let adjustmentDetailHTML = '';
+                
+                if (Math.abs(adjValue) > 0.01) { 
+                    const plPrePrefix = profitLossPre >= 0 ? '+' : '';
+                    const adjSign = adjValue >= 0 ? '+' : '';
+                    
+                    adjustmentDetailHTML = `
+                        <span class="text-xs text-purple-600 font-semibold block leading-tight pt-0.5">
+                            Pre: ${plPrePrefix}${Math.abs(profitLossPre).toFixed(2)} (${adjSign}${adjValue.toFixed(2)} Adj)
+                        </span>
+                    `;
+                }
+                // --- End Adjustment Detail ---
+                
+                tableHTML += `
+                    <tr class="bg-white border-b hover:bg-gray-50">
+                        <th scope="row" class="py-2 px-2 font-bold text-gray-900 whitespace-nowrap">
+                            ${player.name}
+                        </th>
+                        <td class="py-2 px-2 text-center font-bold text-gray-600">
+                            ${totalPlayerMoneyIn.toFixed(2)}
+                        </td>
+                        <td class="py-2 px-2 text-right font-extrabold text-gray-800">
+                            ${closingBalance.toFixed(2)}
+                        </td>
+                        <td class="py-2 px-2 text-right font-extrabold">
+                            <div class="${profitLossAdjClass}">
+                                ${plAdjPrefix}${Math.abs(profitLossAdjusted).toFixed(2)}
+                                ${adjustmentDetailHTML} 
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            // Total Logic for Shareable Table
+            let shortfallDisplayPrefix;
+            let shortfallDisplayValue;
+            
+            if (netProfitLoss < -0.01) {
+                shortfallDisplayPrefix = '-';
+                shortfallDisplayValue = Math.abs(netProfitLoss).toFixed(2);
+                
+            } else if (netProfitLoss > 0.01) {
+                shortfallDisplayPrefix = '+';
+                shortfallDisplayValue = netProfitLoss.toFixed(2);
+                
+            } else {
+                shortfallDisplayPrefix = '+';
+                shortfallDisplayValue = (0.00).toFixed(2);
+            }
+            
+            const shortfallTotalClass = shortfallDisplayPrefix === '-' ? 'text-red-600' : 'text-green-600';
+
+            // Add Totals Row
+            tableHTML += `
+                        </tbody>
+                        <tfoot class="bg-gray-100 border-t-2 border-gray-300">
+                            <tr class="font-bold text-gray-900">
+                                <th scope="row" class="py-2 px-2 text-xs">TOTALS</th>
+                                <td class="py-2 px-2 text-center text-xs">${totalMoneyIn.toFixed(2)}</td>
+                                <td class="py-2 px-2 text-right text-xs">${totalClosingBalance.toFixed(2)}</td>
+                                
+                                <td class="py-2 px-2 text-right text-xs ${shortfallTotalClass}">${shortfallDisplayPrefix}$${shortfallDisplayValue}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('shareable-results-table').innerHTML = tableHTML;
+        }
+
+        // Exit Photo Share View (unchanged)
+        window.exitPhotoShareView = () => {
+            document.getElementById('photo-share-view').classList.add('hidden');
+            document.getElementById('game-content-container').classList.remove('hidden');
+        };
+
+        // Show Reset Confirmation Modal (unchanged)
+        window.showResetConfirmation = () => {
+            document.getElementById('reset-modal').classList.remove('hidden');
+        };
+
+        // Reset Game Data (Update: now clears sessionStorage key)
+        window.resetGame = () => {
+            hideModal('reset-modal');
+            showStatus("Resetting game data...");
+            try {
+                // Only reset reloads, balances, and adjustments
+                playersData = playersData.map(player => ({
+                    ...player,
+                    reloads: 0,
+                    closingBalance: 0,
+                    adjustmentAmount: 0
+                }));
+                
+                // Clear the session storage to match the reset game state
+                sessionStorage.removeItem(SESSION_STORAGE_KEY);
+                
+                processAndRenderPlayers(); // Update UI & Save
+                showStatus("Game successfully reset!", false);
+                setTimeout(hideStatus, 3000);
+            } catch (e) {
+                console.error("Error resetting data:", e);
+                showStatus(`Failed to reset game: ${e.message}`, true);
+            }
+        };
+
+        // Show Delete Confirmation Modal (unchanged)
+        window.showDeleteConfirmation = (playerId, playerName) => {
+            const modal = document.getElementById('delete-modal');
+            document.getElementById('delete-player-name').textContent = playerName;
+            
+            const confirmButton = document.getElementById('confirm-delete-button');
+            confirmButton.onclick = () => deletePlayer(playerId);
+            
+            modal.classList.remove('hidden');
+        };
+
+        // Delete Player (Delete, saves immediately)
+        window.deletePlayer = (playerId) => {
+            hideModal('delete-modal');
+            showStatus("Removing player...");
+
+            try {
+                playersData = playersData.filter(player => player.id !== playerId);
+                processAndRenderPlayers(); // Update UI & Save
+                showStatus("Player successfully removed!", false);
+                setTimeout(hideStatus, 3000);
+            } catch (e) {
+                console.error("Error deleting player:", e);
+                showStatus(`Failed to remove player: ${e.message}`, true);
+            }
+        };
+
+        // Hide Modals Utility (unchanged)
+        window.hideModal = (id) => {
+            document.getElementById(id).classList.add('hidden');
+        };
+        
+        // Initial load: Load data from session storage first, then render
+        window.onload = () => {
+            loadSessionData();
+            processAndRenderPlayers();
+        };
+    </script>
+</body>
+</html>
